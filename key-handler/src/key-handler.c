@@ -6,6 +6,7 @@
 #include <linux/string.h>
 #include <linux/interrupt.h>
 #include <linux/time.h>
+#include <linux/cdev.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Piotr Gardocki");
@@ -19,6 +20,10 @@ static int dev_open_count;
 static int dev_output_done;
 static unsigned interrupt_counter;
 static char last_reset_date[50];
+
+static dev_t first;
+static struct class *cl;
+static struct cdev char_dev;
 
 static void set_reset_date(void);
 static ssize_t device_read(struct file*, char*, size_t, loff_t*);
@@ -39,13 +44,41 @@ static int __init init(void)
 {
 	interrupt_counter = 0;
 	dev_open_count = 0;
-
-	dev_number = register_chrdev(0, DEVICE_NAME, &fops);
-	if (dev_number < 0)
-	{
-		printk(KERN_ALERT "Could not register device\n");
-		return dev_number;
-	}
+    
+    if (alloc_chrdev_region(&first, 0, 1, DEVICE_NAME) < 0)
+    {
+        return -1;
+    }
+    printk(KERN_INFO "<Major, Minor>: <%d, %d>\n", MAJOR(first), MINOR(first));
+    if ((cl = class_create(THIS_MODULE, "chardrv")) == NULL)
+    {
+        printk(KERN_INFO "class_create() failed");
+        unregister_chrdev_region(first, 1);
+        return -1;
+    }
+    if (device_create(cl, NULL, first, NULL, DEVICE_NAME) == NULL)
+    {
+        printk(KERN_INFO "device_create() failed");
+        class_destroy(cl);
+        unregister_chrdev_region(first, 1);
+        return -1;
+    }
+    
+    cdev_init(&char_dev, &fops);
+    if (cdev_add(&char_dev, first, 1) == -1)
+    {
+            device_destroy(cl, first);
+            class_destroy(cl);
+            unregister_chrdev_region(first, 1);
+            return -1;
+    }
+    
+	//dev_number = register_chrdev(0, DEVICE_NAME, &fops);
+	//if (dev_number < 0)
+	//{
+	//	printk(KERN_ALERT "Could not register device\n");
+	//	return dev_number;
+	//}
 
 	int irq = request_irq(1, (irq_handler_t)keyboard_handler, IRQF_SHARED, "keyboard-irq-handler", (void*)keyboard_handler);
 	if (irq != 0)
@@ -62,8 +95,14 @@ static int __init init(void)
 static void __exit cleanup(void)
 {
 	free_irq(1, (void*)keyboard_handler);
-	unregister_chrdev(dev_number, DEVICE_NAME);
-	printk(KERN_INFO "Module key-handler successfully unloaded\n");
+	//unregister_chrdev(dev_number, DEVICE_NAME);
+	
+    //unregister_chrdev_region(first, 1);
+    device_destroy(cl, first);
+    class_destroy(cl);
+    unregister_chrdev_region(first, 1);
+    
+    printk(KERN_INFO "Module key-handler successfully unloaded\n");
 }
 
 module_init(init);
