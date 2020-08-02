@@ -8,7 +8,7 @@
 #include <linux/time.h>
 #include <linux/cdev.h>
 
-#include <module-interface.h>
+#include "module-interface.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Piotr Gardocki");
@@ -25,7 +25,7 @@ static dev_t first;
 static struct class *cl;
 static struct cdev char_dev;
 
-static void set_reset_date(void);
+static void reset_counter(void);
 static ssize_t device_read(struct file*, char*, size_t, loff_t*);
 static ssize_t device_write(struct file*, const char*, size_t, loff_t*);
 static int device_open(struct inode*, struct file*);
@@ -82,7 +82,7 @@ static int __init init(void)
         return irq;
     }
 
-    set_reset_date();
+    reset_counter();
     printk(KERN_INFO "Module key-handler successfully loaded\n");
     return 0;
 }
@@ -125,19 +125,21 @@ long device_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl
         put_user('\0', (char *) ioctl_param + i);
         break;
 
-    case QUERY_GET_RESET_COUNT:
-        break;
-    case QUERY_GET_RESET_DATE:
-        break;
-    case QUERY_RESET_COUNTER:
-        break;
+//    case QUERY_GET_RESET_COUNT:
+//        break;
+//    case QUERY_GET_RESET_DATE:
+//        break;
+//    case QUERY_RESET_COUNTER:
+//        break;
     }
 
     return 0;
 }
 
-static void set_reset_date(void)
+static void reset_counter(void)
 {
+    interrupt_counter = 0;
+
     struct timespec64 now;
     struct tm tm_val;
     ktime_get_real_ts64(&now);
@@ -182,8 +184,7 @@ static ssize_t device_write(struct file *f, const char *buffer, size_t length, l
     int is_reset = strncmp("reset", request, 5);
     if (is_reset == 0)
     {
-        interrupt_counter = 0;
-        set_reset_date();
+        reset_counter();
         printk(KERN_INFO "Counter reseted\n");
     }
     else
