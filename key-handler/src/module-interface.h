@@ -3,6 +3,8 @@
 
 #include <linux/ioctl.h>
 
+#define MAX_IO_BUFFER 40
+
 #define MAJOR_NUMBER 240
 #define DEVICE_NAME "key-handler"
 

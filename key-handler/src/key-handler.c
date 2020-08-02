@@ -14,12 +14,10 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Piotr Gardocki");
 MODULE_DESCRIPTION("A simple module to count keyboard interrupts");
 
-#define MAX_INPUT_BUFFER 50
-
 static int dev_open_count;
 static int dev_output_done;
 static unsigned interrupt_counter;
-static char last_reset_date[50];
+static char last_reset_date[MAX_IO_BUFFER];
 
 static dev_t first;
 static struct class *cl;
@@ -175,11 +173,11 @@ static ssize_t device_read(struct file *f, char *buffer, size_t length, loff_t* 
 
 static ssize_t device_write(struct file *f, const char *buffer, size_t length, loff_t* l)
 {
-    char request[MAX_INPUT_BUFFER];
+    char request[MAX_IO_BUFFER];
     int i;
-    for (i = 0; i < length && i < MAX_INPUT_BUFFER; ++i)
+    for (i = 0; i < length && i < MAX_IO_BUFFER; ++i)
         get_user(request[i], buffer + i);
-    request[MAX_INPUT_BUFFER - 1] = '\0';
+    request[MAX_IO_BUFFER - 1] = '\0';
 
     int is_reset = strncmp("reset", request, 5);
     if (is_reset == 0)
