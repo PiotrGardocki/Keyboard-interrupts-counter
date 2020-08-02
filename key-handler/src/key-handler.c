@@ -128,7 +128,7 @@ static void reset_counter(void)
     ktime_get_real_ts64(&now);
     time64_to_tm(now.tv_sec, 0, &tm_val);
 
-    sprintf(last_reset_date, "Last reset date (UTC): %d/%d/%ld %02d:%02d:%02d\n",
+    sprintf(last_reset_date, "%d/%d/%ld %02d:%02d:%02d",
             tm_val.tm_mday, tm_val.tm_mon + 1, 1900 + tm_val.tm_year,
             tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
 }
