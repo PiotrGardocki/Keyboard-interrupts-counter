@@ -19,14 +19,14 @@ void get_interrupts_count(int file)
 {
     char output[MAX_IO_BUFFER];
     if (ioctl(file, QUERY_GET_RESET_COUNT, output) != -1)
-        printf("%s\n", output);
+        printf("Interrupts: %s\n", output);
 }
 
 void get_reset_date(int file)
 {
-    char output[MAX_IO_BUFFER];
-    if (ioctl(file, QUERY_GET_RESET_DATE, output) != -1)
-        printf("%s\n", output);
+    unsigned long long timestamp;
+    if (ioctl(file, QUERY_GET_RESET_DATE, &timestamp) != -1)
+        printf("Last reset (UTC): %llu\n", timestamp);
 }
 
 void reset_counter(int file)
