@@ -15,7 +15,6 @@ MODULE_AUTHOR("Piotr Gardocki");
 MODULE_DESCRIPTION("A simple module to count keyboard interrupts");
 
 static int dev_open_count;
-static int dev_output_done;
 static unsigned interrupt_counter;
 static char last_reset_date[MAX_IO_BUFFER];
 
@@ -24,8 +23,10 @@ static struct class *cl;
 static struct cdev char_dev;
 
 static void reset_counter(void);
-static ssize_t device_read(struct file*, char*, size_t, loff_t*);
-static ssize_t device_write(struct file*, const char*, size_t, loff_t*);
+static void write_reset_count(char*);
+static void write_reset_date(char*);
+static void copy_buffer_to_user(const char*, char*);
+
 static int device_open(struct inode*, struct file*);
 static int device_release(struct inode*, struct file*);
 
@@ -101,34 +102,18 @@ module_exit(cleanup);
 
 long device_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
 {
-    int i;
-    char *temp;
-    char ch;
-
     printk(KERN_INFO "ioctl action\n");
     switch (ioctl_num)
     {
-    case _IOW(240, 0, char *):
-        temp = (char *) ioctl_param;
-
-        get_user(ch, temp);
-        for (i=0; ch && i<30; i++, temp++)
-            get_user(ch, temp);
-
-        device_write(file, (char *) ioctl_param, i, 0);
+    case QUERY_GET_RESET_COUNT:
+        write_reset_count((char*)ioctl_param);
         break;
-
-    case _IOR(240, 1, char *):
-        i = device_read(file, (char *) ioctl_param, 99, 0);
-        put_user('\0', (char *) ioctl_param + i);
+    case QUERY_GET_RESET_DATE:
+        write_reset_date((char*)ioctl_param);
         break;
-
-//    case QUERY_GET_RESET_COUNT:
-//        break;
-//    case QUERY_GET_RESET_DATE:
-//        break;
-//    case QUERY_RESET_COUNTER:
-//        break;
+    case QUERY_RESET_COUNTER:
+        reset_counter();
+        break;
     }
 
     return 0;
@@ -148,47 +133,23 @@ static void reset_counter(void)
             tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
 }
 
-static ssize_t device_read(struct file *f, char *buffer, size_t length, loff_t* l)
+static void write_reset_count(char *buffer)
 {
-    if (dev_output_done)
-        return 0;
-
-    int bytes_read = 0;
-    char message[100];
-
-    strcpy(message, last_reset_date);
-    sprintf(message + strlen(last_reset_date), "Interrupts: %u\n", interrupt_counter);
-
-    char *message_ptr = message;
-    while (length && *message_ptr)
-    {
-        put_user(*(message_ptr++), buffer++);
-        --length;
-        ++bytes_read;
-    }
-
-    dev_output_done = 1;
-    return bytes_read;
+    char temp_buffer[MAX_IO_BUFFER];
+    sprintf(temp_buffer, "%u", interrupt_counter);
+    copy_buffer_to_user(temp_buffer, buffer);
 }
 
-static ssize_t device_write(struct file *f, const char *buffer, size_t length, loff_t* l)
+static void write_reset_date(char *buffer)
 {
-    char request[MAX_IO_BUFFER];
-    int i;
-    for (i = 0; i < length && i < MAX_IO_BUFFER; ++i)
-        get_user(request[i], buffer + i);
-    request[MAX_IO_BUFFER - 1] = '\0';
+    copy_buffer_to_user(last_reset_date, buffer);
+}
 
-    int is_reset = strncmp("reset", request, 5);
-    if (is_reset == 0)
-    {
-        reset_counter();
-        printk(KERN_INFO "Counter reseted\n");
-    }
-    else
-        printk(KERN_ALERT "Unknown request: %s", request);
-
-    return i;
+static void copy_buffer_to_user(const char *buffer, char *user_buffer)
+{
+    while (*buffer)
+        put_user(*(buffer++), user_buffer++);
+    put_user('\0', user_buffer);
 }
 
 static int device_open(struct inode *i, struct file *f)
@@ -197,7 +158,6 @@ static int device_open(struct inode *i, struct file *f)
         return -EBUSY;
 
     ++dev_open_count;
-    dev_output_done = 0;
     try_module_get(THIS_MODULE);
     return 0;
 }
